@@ -40,7 +40,7 @@ Task: Write a complete SRS document for this feature, including the entity desig
 ```
 [ROLE] You are a Spring Boot developer specializing in designing JPA Entities for Core Banking systems, familiar with Lombok, Jakarta Persistence, and best practices for financial data models.
 
-[CONTEXT & TASK] The current CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, MySQL, Lombok) already has Customer and BankAccount entities. The current package structure is:
+[CONTEXT & TASK] Based on the SRS document and entity design produced in Prompt 1, we now need to implement the actual Java code. The current CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, MySQL, Lombok) already has Customer and BankAccount entities. The current package structure is:
 - Entity: com.banking.models.entities (BankAccount.java, Customer.java)
 - Enum: com.banking.models.constant (CustomerStatus.java)
 - Repository: com.banking.models.repositories (BankAccountRepository, CustomerRepository)
@@ -69,7 +69,7 @@ Task: Create 3 new enums (CardTier, CardStatus, SpendingCategory) and 2 new enti
 ```
 [ROLE] You are a Java developer experienced in applying Design Patterns in financial systems, prioritizing clean code and extensibility, avoiding nested if/else blocks.
 
-[CONTEXT & TASK] In the CoreBanking system (Spring Boot 3.2.4, Java 17), the Cashback percentage for credit card transactions needs to be calculated based on 2 factors: Card Tier (CardTier: STANDARD, PLATINUM) and Spending Category (SpendingCategory: GROCERY, TRAVEL, OTHER). Specific logic:
+[CONTEXT & TASK] Building upon the Enums and Entities created in Prompt 2, we now need to implement the cashback calculation logic. In the CoreBanking system (Spring Boot 3.2.4, Java 17), the Cashback percentage for credit card transactions needs to be calculated based on 2 factors: Card Tier (CardTier: STANDARD, PLATINUM) and Spending Category (SpendingCategory: GROCERY, TRAVEL, OTHER). Specific logic:
 - STANDARD + GROCERY → 1%, STANDARD + TRAVEL → 0.5%, STANDARD + OTHER → 0%.
 - PLATINUM + GROCERY → 3%, PLATINUM + TRAVEL → 5%, PLATINUM + OTHER → 0%.
 Task: Implement the Strategy Pattern with 4 files: CashbackStrategy interface, 2 concrete strategies (StandardCashbackStrategy, PlatinumCashbackStrategy), and CashbackStrategyFactory. All placed in the com.banking.models.services.strategy package.
@@ -94,7 +94,7 @@ Task: Implement the Strategy Pattern with 4 files: CashbackStrategy interface, 2
 ```
 [ROLE] You are a Spring Boot backend developer specializing in writing Service layers for financial systems, experienced with transaction processing, validation, and exception handling best practices.
 
-[CONTEXT & TASK] The CoreBanking system needs a Service to handle the payment flow for credit cards with the Cashback feature. Available components:
+[CONTEXT & TASK] Using the Strategy Pattern classes implemented in Prompt 3, the CoreBanking system now needs a Service layer to orchestrate the full payment flow for credit cards with the Cashback feature. Available components:
 - CreditCardRepository.findById(Long id) → Optional<CreditCard>
 - TransactionRepository.save(Transaction tx) → Transaction
 - CreditCardRepository.save(CreditCard card) → CreditCard
@@ -133,7 +133,7 @@ Task: Write PaymentService (in package com.banking.models.services) with method 
 ```
 [ROLE] You are a Spring Boot developer specializing in writing REST Controllers and configuring Spring Security for banking systems.
 
-[CONTEXT & TASK] The CoreBanking system already has PaymentService.processPayment(PaymentRequest) → PaymentResponse. We need to create PaymentController to expose the API and update SecurityConfig to allow public access. Existing files:
+[CONTEXT & TASK] With the PaymentService completed in Prompt 4, the CoreBanking system now has the full business logic layer ready. We need to create PaymentController to expose the API and update SecurityConfig to allow public access. Existing files:
 - AuthController (com.banking.controllers): uses the @RestController, @RequestMapping("/api/v1/auth"), @RequiredArgsConstructor pattern, injects service, returns ResponseEntity<ApiResponse<T>>.
 - ApiResponse<T> (com.banking.advice): has static method success(T data, String message) → ApiResponse<T>.
 - SecurityConfig (com.banking.security): currently allows /api/v1/auth/** as permitAll, everything else is authenticated.
@@ -156,7 +156,7 @@ Task: Create PaymentController with a POST /api/v1/payments endpoint and update 
 ```
 [ROLE] You are a Java developer experienced in debugging compilation errors in Spring Boot projects using Gradle.
 
-[CONTEXT & TASK] The CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, Lombok) just had several new files added (3 enums, 2 entities, 2 repositories, 4 strategy classes, 1 service, 1 controller, 1 change in SecurityConfig). A build needs to be run to detect compilation errors, then fix them if any exist.
+[CONTEXT & TASK] After implementing all components from Prompts 1-5, the CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, Lombok) now has several new files (3 enums, 2 entities, 2 repositories, 4 strategy classes, 1 service, 1 controller, 1 change in SecurityConfig). A build needs to be run to detect compilation errors, then fix them if any exist.
 
 [REQUIREMENTS]
 - Run command: ./gradlew build -x test (skip tests, compile only).
