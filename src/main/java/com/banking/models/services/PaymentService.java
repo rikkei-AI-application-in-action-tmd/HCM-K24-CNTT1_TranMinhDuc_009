@@ -55,9 +55,8 @@ public class PaymentService {
         // 5. Điểm thưởng = cashback amount (1 VND = 1 điểm)
         BigDecimal rewardPointsEarned = cashbackAmount;
 
-        // 6. Cộng điểm vào ví thưởng của thẻ
+        // 6. Cộng điểm vào ví thưởng của thẻ (JPA dirty checking sẽ tự động lưu)
         card.setRewardPoints(card.getRewardPoints().add(rewardPointsEarned));
-        creditCardRepository.save(card);
 
         // 7. Lưu giao dịch
         Transaction transaction = Transaction.builder()
