@@ -294,7 +294,7 @@ $$\text{CreditCard.rewardPoints}_{new} = \text{CreditCard.rewardPoints}_{old} + 
 | Tiêu chí | If/Else truyền thống | Strategy Pattern |
 | :--- | :--- | :--- |
 | Mở rộng hạng thẻ mới (VD: GOLD) | Phải sửa code logic hiện tại | Chỉ thêm 1 class mới, không sửa code cũ |
-| Tuân thủ Open/Closed Principle | ❌ Vi phạm | ✅ Tuân thủ |
+| Tuân thủ Open/Closed Principle |  Vi phạm |  Tuân thủ |
 | Độ dài code khi thêm nhiều hạng | Tăng tuyến tính (if/else dài) | Không ảnh hưởng file cũ |
 | Kiểm thử đơn vị (Unit Test) | Khó test riêng từng hạng | Dễ test riêng từng Strategy |
 
