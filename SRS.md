@@ -3,59 +3,68 @@
 ## 1. Giới thiệu
 
 ### 1.1 Mục đích
-Tài liệu này mô tả yêu cầu hệ thống cho tính năng "Tích điểm hoàn tiền" (Cashback/Rewards) áp dụng cho Thẻ tín dụng trong hệ thống CoreBanking.
+Tài liệu này mô tả chi tiết đặc tả yêu cầu phần mềm (SRS) cho tính năng **"Tích điểm hoàn tiền" (Cashback/Rewards)** áp dụng cho Thẻ tín dụng trong hệ thống CoreBanking.
 
 ### 1.2 Phạm vi
-- Thêm entity `CreditCard` (có hạng thẻ) và `Transaction` (có danh mục chi tiêu).
-- Xây dựng API Payment tự động tính tiền hoàn lại (Cashback) dựa trên hạng thẻ và danh mục chi tiêu.
-- Xử lý ngoại lệ khi thẻ bị khóa hoặc danh mục không hợp lệ.
+- Thêm Entity `CreditCard` (quản lý hạng thẻ, trạng thái và ví điểm thưởng) và `Transaction` (lưu vết lịch sử giao dịch và cashback).
+- Xây dựng API Payment tự động tính tiền hoàn lại (Cashback) dựa trên Hạng thẻ và Danh mục chi tiêu (Category).
+- Áp dụng **Strategy Pattern** cho logic tính hoàn tiền.
+- Xử lý ngoại lệ chuẩn HTTP 422 khi thẻ bị khóa hoặc danh mục không hợp lệ.
+
+---
 
 ## 2. Entity Design
 
 ### 2.1 CreditCard Entity
-| Trường | Kiểu | Mô tả |
-|--------|------|-------|
-| id | Long (PK, auto-gen) | Khóa chính |
-| cardNumber | String (unique, 16 ký tự) | Số thẻ tín dụng |
-| cardTier | Enum: `STANDARD`, `PLATINUM` | Hạng thẻ |
-| status | Enum: `ACTIVE`, `INACTIVE` | Trạng thái thẻ |
-| rewardPoints | BigDecimal (default 0) | Ví điểm thưởng tích lũy |
-| customer | ManyToOne → Customer | Chủ thẻ |
-| createdAt | LocalDateTime | Ngày tạo |
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Mô tả |
+| :--- | :--- | :--- |
+| `id` | `Long` | Khóa chính (PK, Auto Increment) |
+| `cardNumber` | `String` | Số thẻ tín dụng (Unique, 16 ký tự) |
+| `cardTier` | `Enum (CardTier)` | Hạng thẻ: `STANDARD`, `PLATINUM` |
+| `status` | `Enum (CardStatus)` | Trạng thái thẻ: `ACTIVE`, `INACTIVE` (Default: `ACTIVE`) |
+| `rewardPoints` | `BigDecimal` | Ví điểm thưởng tích lũy (Default: `0.0000`, Precision: 19, Scale: 4) |
+| `customer` | `ManyToOne` | Chủ sở hữu thẻ (Liên kết tới `Customer` Entity, `LAZY` fetch) |
+| `createdAt` | `LocalDateTime` | Thời gian tạo bản ghi (`updatable = false`) |
 
 ### 2.2 Transaction Entity
-| Trường | Kiểu | Mô tả |
-|--------|------|-------|
-| id | Long (PK, auto-gen) | Khóa chính |
-| amount | BigDecimal | Số tiền giao dịch |
-| category | Enum: `GROCERY`, `TRAVEL`, `OTHER` | Danh mục chi tiêu |
-| cashbackAmount | BigDecimal | Tiền hoàn lại |
-| rewardPoints | BigDecimal | Điểm thưởng nhận được |
-| creditCard | ManyToOne → CreditCard | Thẻ thực hiện giao dịch |
-| createdAt | LocalDateTime | Thời gian giao dịch |
+
+| Trường | Kiểu dữ liệu | Ràng buộc / Mô tả |
+| :--- | :--- | :--- |
+| `id` | `Long` | Khóa chính (PK, Auto Increment) |
+| `amount` | `BigDecimal` | Số tiền giao dịch (Precision: 19, Scale: 4) |
+| `category` | `Enum (SpendingCategory)` | Danh mục chi tiêu: `GROCERY`, `TRAVEL`, `OTHER` |
+| `cashbackAmount` | `BigDecimal` | Số tiền được hoàn lại (Precision: 19, Scale: 4) |
+| `rewardPoints` | `BigDecimal` | Số điểm thưởng nhận được trong giao dịch (Precision: 19, Scale: 4) |
+| `creditCard` | `ManyToOne` | Thẻ tín dụng thực hiện giao dịch (Liên kết `CreditCard`, `LAZY` fetch) |
+| `createdAt` | `LocalDateTime` | Thời gian giao dịch (`updatable = false`) |
+
+---
 
 ## 3. Decision Table — Logic tính % Cashback
 
-| Hạng thẻ (CardTier) | Danh mục (Category) | % Cashback | Ví dụ: Amount = 1,000,000 VND |
-|----------------------|---------------------|------------|-------------------------------|
-| STANDARD | GROCERY | 1% | Cashback = 10,000 VND |
-| STANDARD | TRAVEL | 0.5% | Cashback = 5,000 VND |
-| STANDARD | OTHER | 0% | Cashback = 0 VND |
-| PLATINUM | GROCERY | 3% | Cashback = 30,000 VND |
-| PLATINUM | TRAVEL | 5% | Cashback = 50,000 VND |
-| PLATINUM | OTHER | 0% | Cashback = 0 VND |
+| STT | Hạng thẻ (`CardTier`) | Danh mục (`SpendingCategory`) | Tỷ lệ Cashback | Ví dụ giao dịch: Amount = 1,000,000 VND |
+| :-: | :--- | :--- | :-: | :--- |
+| **1** | `STANDARD` | `GROCERY` (Siêu thị) | **1.0%** | Cashback = 10,000 VND, Points = +10,000 |
+| **2** | `STANDARD` | `TRAVEL` (Du lịch) | **0.5%** | Cashback = 5,000 VND, Points = +5,000 |
+| **3** | `STANDARD` | `OTHER` (Khác) | **0.0%** | Cashback = 0 VND, Points = +0 |
+| **4** | `PLATINUM` | `GROCERY` (Siêu thị) | **3.0%** | Cashback = 30,000 VND, Points = +30,000 |
+| **5** | `PLATINUM` | `TRAVEL` (Du lịch) | **5.0%** | Cashback = 50,000 VND, Points = +50,000 |
+| **6** | `PLATINUM` | `OTHER` (Khác) | **0.0%** | Cashback = 0 VND, Points = +0 |
 
-**Quy tắc:**
-- Cashback = amount × (% Cashback / 100)
-- Điểm thưởng (rewardPoints) = Cashback (1 VND cashback = 1 điểm)
-- Điểm thưởng được cộng dồn vào trường `rewardPoints` của CreditCard.
+**Quy tắc nghiệp vụ:**
+1. $\text{CashbackAmount} = \text{Amount} \times \left(\frac{\text{CashbackPercent}}{100}\right)$
+2. Quy đổi điểm thưởng: **1 VND Cashback = 1 Điểm thưởng (`rewardPoints`)**.
+3. Điểm thưởng của giao dịch mới sẽ được cộng dồn trực tiếp vào trường `rewardPoints` của thẻ tín dụng (`CreditCard`).
 
-## 4. API Payment
+---
+
+## 4. API Payment Specifications
 
 ### 4.1 Endpoint
-```
-POST /api/v1/payments
-```
+- **HTTP Method**: `POST`
+- **URL**: `/api/v1/payments`
+- **Authentication**: Public (`permitAll`)
 
 ### 4.2 Request Body
 ```json
@@ -66,7 +75,7 @@ POST /api/v1/payments
 }
 ```
 
-### 4.3 Response thành công (200 OK)
+### 4.3 Response — Thành công (HTTP 200 OK)
 ```json
 {
   "data": {
@@ -81,7 +90,7 @@ POST /api/v1/payments
 }
 ```
 
-### 4.4 Response lỗi — Thẻ bị khóa (422)
+### 4.4 Response — Lỗi Thẻ bị khóa (HTTP 422 Unprocessable Entity)
 ```json
 {
   "data": null,
@@ -90,7 +99,7 @@ POST /api/v1/payments
 }
 ```
 
-### 4.5 Response lỗi — Category không hợp lệ (422)
+### 4.5 Response — Lỗi Danh mục không hợp lệ (HTTP 422 Unprocessable Entity)
 ```json
 {
   "data": null,
@@ -99,19 +108,23 @@ POST /api/v1/payments
 }
 ```
 
-## 5. Design Pattern
+---
 
-Sử dụng **Strategy Pattern** để tách logic tính cashback theo hạng thẻ:
+## 5. Design Pattern Architecture
 
-- `CashbackStrategy` (interface): method `calculateCashbackPercent(SpendingCategory category)` → trả `BigDecimal`.
-- `StandardCashbackStrategy`: implement cho STANDARD (GROCERY→1%, TRAVEL→0.5%, OTHER→0%).
-- `PlatinumCashbackStrategy`: implement cho PLATINUM (GROCERY→3%, TRAVEL→5%, OTHER→0%).
-- `CashbackStrategyFactory`: nhận `CardTier` → trả `CashbackStrategy` tương ứng.
+Hệ thống áp dụng **Strategy Pattern** để đóng gói và linh hoạt mở rộng thuật toán tính toán % hoàn tiền theo từng hạng thẻ:
 
-## 6. Xử lý ngoại lệ
+- **`CashbackStrategy`** *(Interface)*: Định nghĩa phương thức `calculateCashbackPercent(SpendingCategory category)`.
+- **`StandardCashbackStrategy`** *(Component)*: Triển khai logic tính cho hạng thẻ `STANDARD`.
+- **`PlatinumCashbackStrategy`** *(Component)*: Triển khai logic tính cho hạng thẻ `PLATINUM`.
+- **`CashbackStrategyFactory`** *(Component)*: Nhận `CardTier` và trả về `CashbackStrategy` tương ứng.
 
-| Điều kiện | HTTP Status | Message |
-|-----------|-------------|---------|
-| CreditCard không tìm thấy | 422 | "Credit card not found with id: {cardId}" |
-| CreditCard có status = INACTIVE | 422 | "Card is inactive. Payment cannot be processed." |
-| Category không parse được từ request | 422 | "Invalid spending category: {category}" |
+---
+
+## 6. Matrix Xử lý Ngoại lệ (Exception Handling)
+
+| Trường hợp vi phạm | Nguyên nhân | HTTP Status | Business Error Message |
+| :--- | :--- | :-: | :--- |
+| **Không tìm thấy thẻ** | `cardId` không tồn tại trong cơ sở dữ liệu | **422** | `"Credit card not found with id: {cardId}"` |
+| **Thẻ bị khóa** | Thẻ tín dụng có `status = INACTIVE` | **422** | `"Card is inactive. Payment cannot be processed."` |
+| **Danh mục không hợp lệ** | `category` truyền vào không thuộc `SpendingCategory` | **422** | `"Invalid spending category: {category}"` |
