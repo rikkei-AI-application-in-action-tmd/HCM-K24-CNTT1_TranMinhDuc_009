@@ -1,169 +1,169 @@
-# Prompt History — Hệ thống Tích điểm Hoàn tiền (Cashback/Rewards)
+# Prompt History — Cashback/Rewards System
 
-Tài liệu ghi lại toàn bộ các prompt đã sử dụng với AI để xây dựng tính năng Cashback/Rewards cho hệ thống CoreBanking. Mỗi prompt tuân theo format 5 phần (Vai trò, Bối cảnh & Nhiệm vụ, Yêu cầu, Định dạng đầu ra, Kiểm tra lại).
-
----
-
-## Prompt 1: Phân tích nghiệp vụ & viết SRS
-
-```
-[VAI TRÒ] Bạn là một Business Analyst chuyên phân tích hệ thống ngân hàng lõi (Core Banking), có kinh nghiệm viết tài liệu đặc tả yêu cầu phần mềm (SRS) cho các tính năng liên quan đến thẻ tín dụng và chương trình khách hàng thân thiết.
-
-[BỐI CẢNH & NHIỆM VỤ] Ngân hàng cần ra mắt hệ thống "Tích điểm hoàn tiền" (Cashback/Rewards) cho Thẻ tín dụng. Hệ thống CoreBanking hiện tại đã có các entity: Customer, BankAccount (với AccountType gồm CHECKING, SAVINGS, CREDIT). Yêu cầu nghiệp vụ như sau:
-- Thẻ tín dụng chia 2 hạng: STANDARD và PLATINUM.
-- Khi khách hàng quẹt thẻ (thực hiện API Payment), hệ thống tự động tính tiền hoàn lại (Cashback) dựa trên Hạng thẻ và Danh mục chi tiêu (Category).
-- Logic bắt buộc:
-  + Danh mục "Siêu thị" (Grocery): STANDARD hoàn 1%, PLATINUM hoàn 3%.
-  + Danh mục "Du lịch" (Travel): STANDARD hoàn 0.5%, PLATINUM hoàn 5%.
-  + Các danh mục khác: Không hoàn tiền.
-- API Payment phải trả về tổng tiền đã trừ và số điểm hoàn nhận được trong giao dịch đó.
-Nhiệm vụ: Viết tài liệu SRS đầy đủ cho tính năng này, bao gồm thiết kế entity CreditCard (chứa hạng thẻ dạng Enum và trạng thái thẻ) và Transaction (chứa danh mục chi tiêu), xây dựng Bảng quyết định (Decision Table) cho logic tính % Cashback kết hợp Hạng thẻ và Danh mục, mô tả API Payment (endpoint, request/response format), và liệt kê các trường hợp xử lý ngoại lệ (thẻ bị khóa, danh mục không hợp lệ).
-
-[YÊU CẦU]
-- Decision Table phải có đủ 6 tổ hợp (2 hạng × 3 danh mục) với cột ví dụ minh hoạ số tiền cụ thể.
-- Entity design phải chỉ rõ kiểu dữ liệu từng trường (dùng BigDecimal cho tiền tệ, Enum cho hạng thẻ/trạng thái/danh mục).
-- CreditCard entity phải có trường rewardPoints (BigDecimal) để cộng dồn điểm thưởng sau mỗi giao dịch.
-- Mô tả rõ mối quan hệ giữa các entity (CreditCard ManyToOne Customer, Transaction ManyToOne CreditCard).
-- API Payment: endpoint POST /api/v1/payments, request nhận cardId + amount + category, response trả transactionId + amountCharged + cashbackAmount + rewardPointsEarned + totalRewardPoints.
-- Xử lý ngoại lệ: thẻ không tìm thấy → 422, thẻ INACTIVE → 422, category không hợp lệ → 422. Mô tả rõ HTTP status code và message cho từng trường hợp.
-- Đề xuất Design Pattern phù hợp (Strategy Pattern) để tách logic tính cashback theo hạng thẻ, tránh tổ hợp if/else dài.
-
-[ĐỊNH DẠNG ĐẦU RA] File Markdown (.md) có cấu trúc rõ ràng với các mục đánh số: Giới thiệu, Entity Design (bảng mô tả từng trường), Decision Table (bảng 6 dòng), API Payment (endpoint + request/response JSON mẫu), Design Pattern, Xử lý ngoại lệ (bảng liệt kê điều kiện, HTTP status, message).
-
-[KIỂM TRA LẠI] Đọc lại Decision Table — có đúng 6 tổ hợp không, tỷ lệ % có khớp với yêu cầu nghiệp vụ đã nêu không? Các entity có trường nào thiếu so với yêu cầu (ví dụ: CreditCard thiếu status, Transaction thiếu cashbackAmount) không?
-```
+This document records all the prompts used with the AI to build the Cashback/Rewards feature for the CoreBanking system. Each prompt follows the 5-part format (Role, Context & Task, Requirements, Output Format, Verification).
 
 ---
 
-## Prompt 2: Thiết kế Entity và Enum cho CreditCard, Transaction
+## Prompt 1: Business Analysis & SRS Writing
 
 ```
-[VAI TRÒ] Bạn là một Spring Boot developer chuyên thiết kế JPA Entity cho hệ thống Core Banking, quen thuộc với Lombok, Jakarta Persistence, và best practices cho mô hình dữ liệu tài chính.
+[ROLE] You are a Business Analyst specializing in Core Banking systems, experienced in writing Software Requirements Specification (SRS) documents for credit card features and loyalty programs.
 
-[BỐI CẢNH & NHIỆM VỤ] Dự án CoreBanking hiện tại (Spring Boot 3.2.4, Java 17, Gradle, MySQL, Lombok) đã có các entity Customer và BankAccount. Cấu trúc package hiện tại:
+[CONTEXT & TASK] The bank is launching a "Cashback/Rewards" system for Credit Cards. The current CoreBanking system already has the entities: Customer, BankAccount (with AccountType including CHECKING, SAVINGS, CREDIT). The business requirements are as follows:
+- Credit cards are divided into 2 tiers: STANDARD and PLATINUM.
+- When a customer swipes the card (executing the Payment API), the system automatically calculates the cashback based on the Card Tier and Spending Category.
+- Mandatory logic:
+  + "Grocery" category: STANDARD gets 1% cashback, PLATINUM gets 3% cashback.
+  + "Travel" category: STANDARD gets 0.5% cashback, PLATINUM gets 5% cashback.
+  + Other categories: No cashback.
+- The Payment API must return the total deducted amount and the reward points earned in that transaction.
+Task: Write a complete SRS document for this feature, including the entity design for CreditCard (containing the tier as Enum and card status) and Transaction (containing the spending category), build a Decision Table for the cashback percentage logic combining Card Tier and Category, describe the Payment API (endpoint, request/response format), and list the exception handling cases (locked card, invalid category).
+
+[REQUIREMENTS]
+- The Decision Table must have exactly 6 combinations (2 tiers × 3 categories) with an example column illustrating specific amounts.
+- The Entity design must specify the data type for each field (use BigDecimal for currency, Enum for card tier/status/category).
+- The CreditCard entity must have a rewardPoints (BigDecimal) field to accumulate reward points after each transaction.
+- Clearly describe the relationships between entities (CreditCard ManyToOne Customer, Transaction ManyToOne CreditCard).
+- Payment API: POST endpoint /api/v1/payments, request receives cardId + amount + category, response returns transactionId + amountCharged + cashbackAmount + rewardPointsEarned + totalRewardPoints.
+- Exception handling: card not found → 422, card INACTIVE → 422, invalid category → 422. Clearly describe the HTTP status code and message for each case.
+- Propose an appropriate Design Pattern (Strategy Pattern) to decouple the cashback calculation logic by card tier, avoiding long if/else blocks.
+
+[OUTPUT FORMAT] A Markdown (.md) file with a clear structure and numbered sections: Introduction, Entity Design (table describing each field), Decision Table (6-row table), Payment API (endpoint + sample JSON request/response), Design Pattern, Exception Handling (table listing conditions, HTTP status, message).
+
+[VERIFICATION] Re-read the Decision Table — are there exactly 6 combinations? Do the percentages match the stated business requirements? Are there any missing fields in the entities compared to the requirements (e.g., CreditCard missing status, Transaction missing cashbackAmount)?
+```
+
+---
+
+## Prompt 2: Entity and Enum Design for CreditCard and Transaction
+
+```
+[ROLE] You are a Spring Boot developer specializing in designing JPA Entities for Core Banking systems, familiar with Lombok, Jakarta Persistence, and best practices for financial data models.
+
+[CONTEXT & TASK] The current CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, MySQL, Lombok) already has Customer and BankAccount entities. The current package structure is:
 - Entity: com.banking.models.entities (BankAccount.java, Customer.java)
 - Enum: com.banking.models.constant (CustomerStatus.java)
 - Repository: com.banking.models.repositories (BankAccountRepository, CustomerRepository)
-Pattern hiện tại: Entity dùng @Builder, @Getter, @Setter, @NoArgsConstructor, @AllArgsConstructor; dùng BigDecimal cho tiền tệ với precision=19, scale=4; @PrePersist cho createdAt; enum dùng @Enumerated(EnumType.STRING).
-Nhiệm vụ: Tạo 3 enum mới (CardTier, CardStatus, SpendingCategory) và 2 entity mới (CreditCard, Transaction) cùng 2 repository tương ứng, tuân thủ đúng pattern code hiện tại.
+Current pattern: Entities use @Builder, @Getter, @Setter, @NoArgsConstructor, @AllArgsConstructor; use BigDecimal for currency with precision=19, scale=4; @PrePersist for createdAt; enums use @Enumerated(EnumType.STRING).
+Task: Create 3 new enums (CardTier, CardStatus, SpendingCategory) and 2 new entities (CreditCard, Transaction) along with their 2 corresponding repositories, strictly adhering to the current code pattern.
 
-[YÊU CẦU]
-- Enum CardTier: STANDARD, PLATINUM. Đặt tại com.banking.models.constant.
-- Enum CardStatus: ACTIVE, INACTIVE. Đặt tại com.banking.models.constant.
-- Enum SpendingCategory: GROCERY, TRAVEL, OTHER. Đặt tại com.banking.models.constant.
-- Entity CreditCard (table: credit_cards): id (Long PK auto), cardNumber (String unique 16 ký tự), cardTier (Enum CardTier), status (Enum CardStatus, default ACTIVE), rewardPoints (BigDecimal default ZERO, precision 19 scale 4), customer (ManyToOne LAZY → Customer), createdAt (LocalDateTime, @PrePersist).
-- Entity Transaction (table: transactions): id (Long PK auto), amount (BigDecimal, precision 19 scale 4), category (Enum SpendingCategory), cashbackAmount (BigDecimal, precision 19 scale 4), rewardPoints (BigDecimal, precision 19 scale 4), creditCard (ManyToOne LAZY → CreditCard), createdAt (LocalDateTime, @PrePersist).
-- Cả 2 entity đều dùng @Builder, @Getter, @Setter, @NoArgsConstructor, @AllArgsConstructor giống BankAccount hiện tại.
-- Repository: CreditCardRepository extends JpaRepository<CreditCard, Long>, TransactionRepository extends JpaRepository<Transaction, Long>. Đặt tại com.banking.models.repositories.
-- Không import thừa, không thêm method ngoài yêu cầu.
+[REQUIREMENTS]
+- CardTier Enum: STANDARD, PLATINUM. Placed in com.banking.models.constant.
+- CardStatus Enum: ACTIVE, INACTIVE. Placed in com.banking.models.constant.
+- SpendingCategory Enum: GROCERY, TRAVEL, OTHER. Placed in com.banking.models.constant.
+- CreditCard Entity (table: credit_cards): id (Long PK auto), cardNumber (String unique 16 chars), cardTier (Enum CardTier), status (Enum CardStatus, default ACTIVE), rewardPoints (BigDecimal default ZERO, precision 19 scale 4), customer (ManyToOne LAZY → Customer), createdAt (LocalDateTime, @PrePersist).
+- Transaction Entity (table: transactions): id (Long PK auto), amount (BigDecimal, precision 19 scale 4), category (Enum SpendingCategory), cashbackAmount (BigDecimal, precision 19 scale 4), rewardPoints (BigDecimal, precision 19 scale 4), creditCard (ManyToOne LAZY → CreditCard), createdAt (LocalDateTime, @PrePersist).
+- Both entities must use @Builder, @Getter, @Setter, @NoArgsConstructor, @AllArgsConstructor just like the existing BankAccount.
+- Repository: CreditCardRepository extends JpaRepository<CreditCard, Long>, TransactionRepository extends JpaRepository<Transaction, Long>. Placed in com.banking.models.repositories.
+- Do not add unnecessary imports, do not add methods outside the requirements.
 
-[ĐỊNH DẠNG ĐẦU RA] Mỗi file Java là một code block riêng biệt, bắt đầu bằng comment ghi rõ đường dẫn file (ví dụ: // src/main/java/com/banking/models/constant/CardTier.java). Tổng cộng 7 code block cho 7 file: 3 enum + 2 entity + 2 repository.
+[OUTPUT FORMAT] Each Java file should be in a separate code block, starting with a comment specifying the exact file path (e.g., // src/main/java/com/banking/models/constant/CardTier.java). A total of 7 code blocks for 7 files: 3 enums + 2 entities + 2 repositories.
 
-[KIỂM TRA LẠI] So sánh annotation và cách khai báo trường của CreditCard/Transaction với BankAccount.java hiện tại — có khác biệt nào về style (ví dụ: thiếu @Builder.Default cho giá trị mặc định, sai thứ tự annotation) không? Các ManyToOne relationship có dùng FetchType.LAZY giống BankAccount → Customer không?
+[VERIFICATION] Compare the annotations and field declarations of CreditCard/Transaction with the existing BankAccount.java — are there any style differences (e.g., missing @Builder.Default for default values, wrong annotation order)? Do the ManyToOne relationships use FetchType.LAZY just like BankAccount → Customer?
 ```
 
 ---
 
-## Prompt 3: Áp dụng Strategy Pattern cho logic tính Cashback
+## Prompt 3: Applying Strategy Pattern for Cashback Logic
 
 ```
-[VAI TRÒ] Bạn là một Java developer có kinh nghiệm áp dụng Design Pattern trong hệ thống tài chính, ưu tiên code sạch (clean code) và dễ mở rộng, tránh tổ hợp if/else lồng nhau.
+[ROLE] You are a Java developer experienced in applying Design Patterns in financial systems, prioritizing clean code and extensibility, avoiding nested if/else blocks.
 
-[BỐI CẢNH & NHIỆM VỤ] Trong hệ thống CoreBanking (Spring Boot 3.2.4, Java 17), cần tính phần trăm Cashback cho giao dịch thẻ tín dụng dựa trên 2 yếu tố: Hạng thẻ (CardTier: STANDARD, PLATINUM) và Danh mục chi tiêu (SpendingCategory: GROCERY, TRAVEL, OTHER). Logic cụ thể:
+[CONTEXT & TASK] In the CoreBanking system (Spring Boot 3.2.4, Java 17), the Cashback percentage for credit card transactions needs to be calculated based on 2 factors: Card Tier (CardTier: STANDARD, PLATINUM) and Spending Category (SpendingCategory: GROCERY, TRAVEL, OTHER). Specific logic:
 - STANDARD + GROCERY → 1%, STANDARD + TRAVEL → 0.5%, STANDARD + OTHER → 0%.
 - PLATINUM + GROCERY → 3%, PLATINUM + TRAVEL → 5%, PLATINUM + OTHER → 0%.
-Nhiệm vụ: Implement Strategy Pattern với 4 file: interface CashbackStrategy, 2 concrete strategy (StandardCashbackStrategy, PlatinumCashbackStrategy), và CashbackStrategyFactory. Tất cả đặt tại package com.banking.models.services.strategy.
+Task: Implement the Strategy Pattern with 4 files: CashbackStrategy interface, 2 concrete strategies (StandardCashbackStrategy, PlatinumCashbackStrategy), and CashbackStrategyFactory. All placed in the com.banking.models.services.strategy package.
 
-[YÊU CẦU]
-- Interface CashbackStrategy: có method calculateCashbackPercent(SpendingCategory category) trả về BigDecimal (ví dụ: 1% trả về new BigDecimal("1")).
-- StandardCashbackStrategy: annotate @Component, implement CashbackStrategy, dùng switch expression (Java 17 syntax) trả đúng tỷ lệ cho từng SpendingCategory.
-- PlatinumCashbackStrategy: annotate @Component, implement CashbackStrategy, tương tự nhưng với tỷ lệ PLATINUM.
-- CashbackStrategyFactory: annotate @Component + @RequiredArgsConstructor, inject 2 concrete strategy qua constructor, method getStrategy(CardTier tier) trả CashbackStrategy tương ứng, dùng switch expression.
-- Không dùng if/else. Dùng switch expression (arrow syntax) cho tất cả logic phân nhánh.
-- BigDecimal phải dùng constructor từ String (new BigDecimal("0.5")) thay vì từ double để tránh sai số.
+[REQUIREMENTS]
+- CashbackStrategy Interface: has method calculateCashbackPercent(SpendingCategory category) returning BigDecimal (e.g., 1% returns new BigDecimal("1")).
+- StandardCashbackStrategy: annotate with @Component, implement CashbackStrategy, use a switch expression (Java 17 syntax) to return the correct percentage for each SpendingCategory.
+- PlatinumCashbackStrategy: annotate with @Component, implement CashbackStrategy, similar but with PLATINUM percentages.
+- CashbackStrategyFactory: annotate with @Component + @RequiredArgsConstructor, inject the 2 concrete strategies via constructor, method getStrategy(CardTier tier) returns the corresponding CashbackStrategy, using a switch expression.
+- Do not use if/else. Use switch expressions (arrow syntax) for all branching logic.
+- BigDecimal must use the String constructor (new BigDecimal("0.5")) instead of double to avoid precision errors.
 
-[ĐỊNH DẠNG ĐẦU RA] 4 code block Java riêng biệt, mỗi block bắt đầu bằng comment ghi đường dẫn file. Thứ tự: interface → StandardCashbackStrategy → PlatinumCashbackStrategy → CashbackStrategyFactory.
+[OUTPUT FORMAT] 4 separate Java code blocks, each block starting with a comment specifying the file path. Order: interface → StandardCashbackStrategy → PlatinumCashbackStrategy → CashbackStrategyFactory.
 
-[KIỂM TRA LẠI] Verify rằng switch expression trong mỗi strategy đã cover hết tất cả giá trị của enum SpendingCategory (GROCERY, TRAVEL, OTHER) — thiếu case nào sẽ gây compile error. Tương tự, CashbackStrategyFactory đã cover hết CardTier (STANDARD, PLATINUM) chưa?
+[VERIFICATION] Verify that the switch expression in each strategy covers all values of the SpendingCategory enum (GROCERY, TRAVEL, OTHER) — a missing case will cause a compile error. Similarly, does the CashbackStrategyFactory cover all CardTiers (STANDARD, PLATINUM)?
 ```
 
 ---
 
-## Prompt 4: Viết PaymentService xử lý logic nghiệp vụ chính
+## Prompt 4: Writing PaymentService for Core Business Logic
 
 ```
-[VAI TRÒ] Bạn là một Spring Boot backend developer chuyên viết Service layer cho hệ thống tài chính, có kinh nghiệm xử lý transaction, validation, và exception handling theo best practices.
+[ROLE] You are a Spring Boot backend developer specializing in writing Service layers for financial systems, experienced with transaction processing, validation, and exception handling best practices.
 
-[BỐI CẢNH & NHIỆM VỤ] Hệ thống CoreBanking cần Service xử lý luồng thanh toán (Payment) cho thẻ tín dụng với tính năng Cashback. Các thành phần đã có sẵn:
+[CONTEXT & TASK] The CoreBanking system needs a Service to handle the payment flow for credit cards with the Cashback feature. Available components:
 - CreditCardRepository.findById(Long id) → Optional<CreditCard>
 - TransactionRepository.save(Transaction tx) → Transaction
 - CreditCardRepository.save(CreditCard card) → CreditCard
 - CashbackStrategyFactory.getStrategy(CardTier tier) → CashbackStrategy
-- CashbackStrategy.calculateCashbackPercent(SpendingCategory category) → BigDecimal (trả % dạng BigDecimal, ví dụ: 1% → BigDecimal("1"))
+- CashbackStrategy.calculateCashbackPercent(SpendingCategory category) → BigDecimal (returns % as BigDecimal, e.g., 1% → BigDecimal("1"))
 - PaymentRequest: cardId (Long), amount (BigDecimal), category (String)
 - PaymentResponse: transactionId (Long), amountCharged (BigDecimal), cashbackAmount (BigDecimal), rewardPointsEarned (BigDecimal), totalRewardPoints (BigDecimal)
-- BusinessException(int code, String message) — exception class sẵn có, GlobalExceptionHandler sẽ trả ResponseEntity theo code truyền vào.
+- BusinessException(int code, String message) — existing exception class, GlobalExceptionHandler will return ResponseEntity based on the passed code.
 - Enum CardStatus: ACTIVE, INACTIVE. Enum SpendingCategory: GROCERY, TRAVEL, OTHER.
-Nhiệm vụ: Viết PaymentService (package com.banking.models.services) với method processPayment(PaymentRequest request) → PaymentResponse.
+Task: Write PaymentService (in package com.banking.models.services) with method processPayment(PaymentRequest request) → PaymentResponse.
 
-[YÊU CẦU]
-- Annotate @Service, @RequiredArgsConstructor. Inject CreditCardRepository, TransactionRepository, CashbackStrategyFactory.
-- Method processPayment phải annotate @Transactional.
-- Luồng xử lý theo thứ tự:
-  1. Parse request.getCategory() thành SpendingCategory bằng valueOf(). Nếu IllegalArgumentException → throw BusinessException(422, "Invalid spending category: " + category).
-  2. Tìm CreditCard bằng cardId. Nếu không tìm thấy → throw BusinessException(422, "Credit card not found with id: " + cardId).
-  3. Kiểm tra card.getStatus() == CardStatus.INACTIVE → throw BusinessException(422, "Card is inactive. Payment cannot be processed.").
-  4. Gọi CashbackStrategyFactory.getStrategy(card.getCardTier()) để lấy strategy.
-  5. Gọi strategy.calculateCashbackPercent(category) để lấy %, rồi tính cashbackAmount = amount × % / 100 (dùng BigDecimal.multiply().divide() với RoundingMode.HALF_UP, scale 4).
-  6. rewardPointsEarned = cashbackAmount (1 VND = 1 điểm).
-  7. Cộng rewardPointsEarned vào card.getRewardPoints(), save card.
+[REQUIREMENTS]
+- Annotate with @Service, @RequiredArgsConstructor. Inject CreditCardRepository, TransactionRepository, CashbackStrategyFactory.
+- The processPayment method must be annotated with @Transactional.
+- Execution flow in order:
+  1. Parse request.getCategory() to SpendingCategory using valueOf(). If IllegalArgumentException → throw BusinessException(422, "Invalid spending category: " + category).
+  2. Find CreditCard by cardId. If not found → throw BusinessException(422, "Credit card not found with id: " + cardId).
+  3. Check card.getStatus() == CardStatus.INACTIVE → throw BusinessException(422, "Card is inactive. Payment cannot be processed.").
+  4. Call CashbackStrategyFactory.getStrategy(card.getCardTier()) to get the strategy.
+  5. Call strategy.calculateCashbackPercent(category) to get the %, then calculate cashbackAmount = amount × % / 100 (using BigDecimal.multiply().divide() with RoundingMode.HALF_UP, scale 4).
+  6. rewardPointsEarned = cashbackAmount (1 VND = 1 point).
+  7. Add rewardPointsEarned to card.getRewardPoints(), save card.
   8. Build Transaction entity (amount, category, cashbackAmount, rewardPoints, creditCard), save.
-  9. Build PaymentResponse (transactionId, amountCharged, cashbackAmount, rewardPointsEarned, totalRewardPoints từ card).
-- Không dùng try-catch bao ngoài toàn bộ method — chỉ try-catch riêng cho valueOf().
+  9. Build PaymentResponse (transactionId, amountCharged, cashbackAmount, rewardPointsEarned, totalRewardPoints from card).
+- Do not use a try-catch wrapping the entire method — only try-catch specifically for valueOf().
 
-[ĐỊNH DẠNG ĐẦU RA] 1 code block Java duy nhất cho file PaymentService.java, bắt đầu bằng comment ghi đường dẫn file.
+[OUTPUT FORMAT] 1 single Java code block for the PaymentService.java file, starting with a comment specifying the file path.
 
-[KIỂM TRA LẠI] Xem lại luồng — nếu category là "OTHER" (hợp lệ, parse thành công) nhưng cashback = 0%, service có xử lý đúng không (vẫn tạo transaction với cashbackAmount = 0, rewardPoints = 0, vẫn trả response thành công)? Thứ tự validation có đúng: category parse trước, rồi tìm card, rồi check status không?
+[VERIFICATION] Review the flow — if the category is "OTHER" (valid, parsed successfully) but the cashback is 0%, does the service handle it correctly (still creates a transaction with cashbackAmount = 0, rewardPoints = 0, still returns a successful response)? Is the validation order correct: parse category first, then find card, then check status?
 ```
 
 ---
 
-## Prompt 5: Viết PaymentController và cấu hình Security
+## Prompt 5: Writing PaymentController and Security Configuration
 
 ```
-[VAI TRÒ] Bạn là một Spring Boot developer chuyên viết REST Controller và cấu hình Spring Security cho hệ thống ngân hàng.
+[ROLE] You are a Spring Boot developer specializing in writing REST Controllers and configuring Spring Security for banking systems.
 
-[BỐI CẢNH & NHIỆM VỤ] Hệ thống CoreBanking đã có PaymentService.processPayment(PaymentRequest) → PaymentResponse. Cần tạo PaymentController để expose API và cập nhật SecurityConfig cho phép truy cập public. Các file hiện có:
-- AuthController (com.banking.controllers): dùng pattern @RestController, @RequestMapping("/api/v1/auth"), @RequiredArgsConstructor, inject service, trả ResponseEntity<ApiResponse<T>>.
-- ApiResponse<T> (com.banking.advice): có static method success(T data, String message) → ApiResponse<T>.
-- SecurityConfig (com.banking.security): hiện cho phép /api/v1/auth/** là permitAll, còn lại authenticated.
-Nhiệm vụ: Tạo PaymentController với endpoint POST /api/v1/payments và cập nhật SecurityConfig thêm permitAll cho /api/v1/payments/**.
+[CONTEXT & TASK] The CoreBanking system already has PaymentService.processPayment(PaymentRequest) → PaymentResponse. We need to create PaymentController to expose the API and update SecurityConfig to allow public access. Existing files:
+- AuthController (com.banking.controllers): uses the @RestController, @RequestMapping("/api/v1/auth"), @RequiredArgsConstructor pattern, injects service, returns ResponseEntity<ApiResponse<T>>.
+- ApiResponse<T> (com.banking.advice): has static method success(T data, String message) → ApiResponse<T>.
+- SecurityConfig (com.banking.security): currently allows /api/v1/auth/** as permitAll, everything else is authenticated.
+Task: Create PaymentController with a POST /api/v1/payments endpoint and update SecurityConfig to add permitAll for /api/v1/payments/**.
 
-[YÊU CẦU]
-- PaymentController: annotate @RestController, @RequestMapping("/api/v1/payments"), @RequiredArgsConstructor. Inject PaymentService. Method processPayment nhận @Valid @RequestBody PaymentRequest, gọi PaymentService.processPayment(), trả ResponseEntity.ok(ApiResponse.success(response, "Payment processed successfully")).
-- SecurityConfig: chỉ thêm 1 dòng .requestMatchers("/api/v1/payments/**").permitAll() ngay sau dòng .requestMatchers("/api/v1/auth/**").permitAll(). Không sửa gì khác.
-- Tuân thủ đúng pattern code của AuthController hiện tại (cùng style annotation, import, trả response).
+[REQUIREMENTS]
+- PaymentController: annotate with @RestController, @RequestMapping("/api/v1/payments"), @RequiredArgsConstructor. Inject PaymentService. The processPayment method receives @Valid @RequestBody PaymentRequest, calls PaymentService.processPayment(), returns ResponseEntity.ok(ApiResponse.success(response, "Payment processed successfully")).
+- SecurityConfig: just add 1 line .requestMatchers("/api/v1/payments/**").permitAll() right after the line .requestMatchers("/api/v1/auth/**").permitAll(). Do not modify anything else.
+- Strictly adhere to the code pattern of the existing AuthController (same style of annotations, imports, response wrapping).
 
-[ĐỊNH DẠNG ĐẦU RA] 2 code block Java: PaymentController.java (file mới) và SecurityConfig.java (chỉ hiển thị đoạn code thay đổi dưới dạng diff, dùng ký hiệu + cho dòng thêm).
+[OUTPUT FORMAT] 2 Java code blocks: PaymentController.java (new file) and SecurityConfig.java (only show the modified code snippet as a diff, use the + symbol for added lines).
 
-[KIỂM TRA LẠI] So sánh PaymentController với AuthController — có dùng cùng cách wrap response (ApiResponse.success()) không? SecurityConfig sau khi thêm dòng mới, thứ tự matcher có hợp lý không (specific paths trước anyRequest)?
+[VERIFICATION] Compare PaymentController with AuthController — does it use the same response wrapping method (ApiResponse.success())? In SecurityConfig, after adding the new line, is the matcher order logical (specific paths before anyRequest)?
 ```
 
 ---
 
-## Prompt 6: Kiểm tra build và sửa lỗi
+## Prompt 6: Build Check and Bug Fixing
 
 ```
-[VAI TRÒ] Bạn là một Java developer có kinh nghiệm debug lỗi biên dịch trong dự án Spring Boot dùng Gradle.
+[ROLE] You are a Java developer experienced in debugging compilation errors in Spring Boot projects using Gradle.
 
-[BỐI CẢNH & NHIỆM VỤ] Dự án CoreBanking (Spring Boot 3.2.4, Java 17, Gradle, Lombok) vừa được thêm nhiều file mới (3 enum, 2 entity, 2 repository, 4 strategy class, 1 service, 1 controller, 1 thay đổi SecurityConfig). Cần chạy build để phát hiện lỗi biên dịch, sau đó sửa nếu có.
+[CONTEXT & TASK] The CoreBanking project (Spring Boot 3.2.4, Java 17, Gradle, Lombok) just had several new files added (3 enums, 2 entities, 2 repositories, 4 strategy classes, 1 service, 1 controller, 1 change in SecurityConfig). A build needs to be run to detect compilation errors, then fix them if any exist.
 
-[YÊU CẦU]
-- Chạy lệnh: ./gradlew build -x test (bỏ qua test, chỉ compile).
-- Nếu BUILD SUCCESSFUL: xác nhận không cần sửa gì.
-- Nếu BUILD FAILED: đọc kỹ log lỗi, xác định file và dòng gây lỗi, sửa đúng lỗi đó mà không thay đổi logic nghiệp vụ hay phá vỡ cấu trúc code hiện tại. Chỉ sửa lỗi compile, không refactor hay "cải tiến" gì thêm.
+[REQUIREMENTS]
+- Run command: ./gradlew build -x test (skip tests, compile only).
+- If BUILD SUCCESSFUL: confirm that no fixes are needed.
+- If BUILD FAILED: carefully read the error logs, identify the file and line causing the error, fix exactly that error without changing the business logic or breaking the existing code structure. Only fix compile errors, do not refactor or "improve" anything else.
 
-[ĐỊNH DẠNG ĐẦU RA] Nếu thành công: ghi "BUILD SUCCESSFUL — Không cần sửa gì." Nếu có lỗi: liệt kê từng lỗi dưới dạng bảng (File, Dòng, Lỗi, Cách sửa), sau đó kèm code block chứa đoạn code đã sửa cho mỗi file.
+[OUTPUT FORMAT] If successful: write "BUILD SUCCESSFUL — No fixes needed." If there are errors: list each error in a table (File, Line, Error, Fix), then provide a code block containing the fixed code snippet for each file.
 
-[KIỂM TRA LẠI] Sau khi sửa, chạy lại ./gradlew build -x test lần nữa — có còn lỗi nào không? Nếu vẫn fail, lặp lại quy trình.
+[VERIFICATION] After fixing, run ./gradlew build -x test again — are there any remaining errors? If it still fails, repeat the process.
 ```
